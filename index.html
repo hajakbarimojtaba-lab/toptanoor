@@ -1,3 +1,5 @@
+[file name]: index.html
+[file content begin]
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -1863,7 +1865,7 @@
               <div class="image-upload" id="imageUpload">
                 <div class="upload-icon">📷</div>
                 <div class="upload-text">آپلود عکس</div>
-                <div class="upload-hint">حداکثر حجم: 5MB (JPG, PNG, WebP)</div>
+                <div class="upload-hint">حداکثر حجم: 2MB (JPG, PNG, WebP)</div>
                 <input type="file" id="itemImage" accept="image/*">
               </div>
               <div class="image-preview" id="imagePreview">
@@ -1933,24 +1935,26 @@
   <script>
     // ================== Configuration ==================
     const CONFIG = {
-      ADMIN_USERNAME: 'matin',
-      ADMIN_PASSWORD: '1025',
-      
-      // تنظیمات API بک‌اند
-      API_BASE_URL: 'http://localhost:5000', // در محیط تولید به آدرس Render تغییر دهید
+      // آدرس API بک‌اند
+      API_BASE_URL: 'http://localhost:5000/api',
       API_ENDPOINTS: {
-        MENU_ITEMS: '/api/menu-items',
-        UPLOAD_IMAGE: '/api/upload',
-        LOGIN: '/api/login'
+        MENU_ITEMS: '/menu',
+        LOGIN: '/auth/login',
+        UPLOAD_IMAGE: '/upload/image'
       },
       
+      // توکن احراز هویت
+      AUTH_TOKEN_KEY: 'tt_auth_token',
+      
+      // کلیدهای localStorage
       STORAGE_KEYS: {
-        TOKEN: 'tt_auth_token',
-        ADMIN_SESSION: 'tt_admin_logged',
+        MENU_ITEMS: 'tt_menu_items',
         THEME: 'tt_theme',
-        API_BASE: 'tt_api_base'
+        LAST_SYNC: 'tt_last_sync',
+        USER_INFO: 'tt_user_info'
       },
       
+      // تصاویر پیش‌فرض برای هر دسته‌بندی
       DEFAULT_IMAGES: {
         fastfood: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80',
         dessert: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80',
@@ -1969,7 +1973,8 @@
       isAdmin: false,
       theme: 'dark',
       isOnline: navigator.onLine,
-      authToken: localStorage.getItem(CONFIG.STORAGE_KEYS.TOKEN)
+      authToken: localStorage.getItem(CONFIG.AUTH_TOKEN_KEY),
+      userInfo: JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.USER_INFO) || 'null')
     };
 
     // ================== DOM Elements ==================
@@ -2070,12 +2075,6 @@
         }, duration);
       },
       
-      getNextId() {
-        return state.menuItems.length > 0 
-          ? Math.max(...state.menuItems.map(item => item.id)) + 1 
-          : 1;
-      },
-      
       getCategoryName(category) {
         const names = {
           fastfood: 'فست‌فود',
@@ -2137,183 +2136,260 @@
         }
       },
       
-      getAuthHeader() {
-        return state.authToken ? { 'Authorization': `Bearer ${state.authToken}` } : {};
+      // تبدیل Base64 به Blob
+      base64ToBlob(base64, mimeType) {
+        const byteCharacters = atob(base64.split(',')[1]);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], { type: mimeType });
       },
       
-      handleApiError(error, defaultMessage = 'خطا در ارتباط با سرور') {
-        console.error('API Error:', error);
-        if (error.message === 'توکن احراز هویت لازم است' || error.message === 'توکن نامعتبر یا منقضی شده است') {
-          this.showToast('لطفا مجدد وارد شوید', 'error');
-          adminManager.logout();
-          return;
+      // اعتبارسنجی فرم
+      validateForm(formData) {
+        const errors = [];
+        
+        if (!formData.name || formData.name.trim().length < 2) {
+          errors.push('نام آیتم باید حداقل ۲ کاراکتر باشد');
         }
-        this.showToast(error.message || defaultMessage, 'error');
+        
+        if (!formData.category) {
+          errors.push('دسته‌بندی را انتخاب کنید');
+        }
+        
+        if (!formData.price || formData.price <= 0) {
+          errors.push('قیمت باید بیشتر از صفر باشد');
+        }
+        
+        if (formData.discount < 0 || formData.discount > 100) {
+          errors.push('تخفیف باید بین ۰ تا ۱۰۰ درصد باشد');
+        }
+        
+        return errors;
       }
     };
 
     // ================== API Communication ==================
     const apiManager = {
+      // هدرهای پیش‌فرض برای درخواست‌ها
+      getHeaders(contentType = 'application/json') {
+        const headers = {
+          'Content-Type': contentType
+        };
+        
+        // اضافه کردن توکن احراز هویت اگر وجود دارد
+        if (state.authToken) {
+          headers['Authorization'] = `Bearer ${state.authToken}`;
+        }
+        
+        return headers;
+      },
+      
+      // هندلینگ خطاهای API
+      handleResponse(response) {
+        if (!response.ok) {
+          throw new Error(`خطای API: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      },
+      
+      // دریافت همه آیتم‌های منو
       async fetchMenuItems() {
         try {
-          const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}`);
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در دریافت منو از سرور');
-          }
-          return await response.json();
+          const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}`, {
+            method: 'GET',
+            headers: this.getHeaders()
+          });
+          
+          return this.handleResponse(response);
         } catch (error) {
+          console.error('خطا در دریافت منو از سرور:', error);
           throw error;
         }
       },
-
-      async addMenuItem(item) {
+      
+      // دریافت یک آیتم خاص
+      async fetchMenuItem(id) {
         try {
-          const headers = {
-            'Content-Type': 'application/json',
-            ...utils.getAuthHeader()
-          };
+          const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}/${id}`, {
+            method: 'GET',
+            headers: this.getHeaders()
+          });
           
+          return this.handleResponse(response);
+        } catch (error) {
+          console.error('خطا در دریافت آیتم:', error);
+          throw error;
+        }
+      },
+      
+      // افزودن آیتم جدید
+      async addMenuItem(itemData) {
+        try {
           const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}`, {
             method: 'POST',
-            headers,
-            body: JSON.stringify(item)
+            headers: this.getHeaders(),
+            body: JSON.stringify(itemData)
           });
           
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در افزودن آیتم');
-          }
-          
-          return await response.json();
+          return this.handleResponse(response);
         } catch (error) {
+          console.error('خطا در افزودن آیتم:', error);
           throw error;
         }
       },
-
-      async updateMenuItem(id, updates) {
+      
+      // ویرایش آیتم
+      async updateMenuItem(id, itemData) {
         try {
-          const headers = {
-            'Content-Type': 'application/json',
-            ...utils.getAuthHeader()
-          };
-          
           const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}/${id}`, {
             method: 'PUT',
-            headers,
-            body: JSON.stringify(updates)
+            headers: this.getHeaders(),
+            body: JSON.stringify(itemData)
           });
           
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در ویرایش آیتم');
-          }
-          
-          return await response.json();
+          return this.handleResponse(response);
         } catch (error) {
+          console.error('خطا در ویرایش آیتم:', error);
           throw error;
         }
       },
-
+      
+      // حذف آیتم
       async deleteMenuItem(id) {
         try {
-          const headers = {
-            ...utils.getAuthHeader()
-          };
-          
           const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.MENU_ITEMS}/${id}`, {
             method: 'DELETE',
-            headers
+            headers: this.getHeaders()
           });
           
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در حذف آیتم');
-          }
-          
-          return await response.json();
+          return this.handleResponse(response);
         } catch (error) {
+          console.error('خطا در حذف آیتم:', error);
           throw error;
         }
       },
-
+      
+      // آپلود عکس
+      async uploadImage(imageFile) {
+        try {
+          const formData = new FormData();
+          formData.append('image', imageFile);
+          
+          const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.UPLOAD_IMAGE}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': state.authToken ? `Bearer ${state.authToken}` : ''
+            },
+            body: formData
+          });
+          
+          return this.handleResponse(response);
+        } catch (error) {
+          console.error('خطا در آپلود عکس:', error);
+          throw error;
+        }
+      },
+      
+      // لاگین کاربر
       async login(username, password) {
         try {
           const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.LOGIN}`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: this.getHeaders(),
             body: JSON.stringify({ username, password })
           });
           
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در ورود');
+          const data = await this.handleResponse(response);
+          
+          // ذخیره توکن و اطلاعات کاربر
+          if (data.token && data.user) {
+            state.authToken = data.token;
+            state.userInfo = data.user;
+            state.isAdmin = data.user.role === 'admin';
+            
+            localStorage.setItem(CONFIG.AUTH_TOKEN_KEY, data.token);
+            localStorage.setItem(CONFIG.STORAGE_KEYS.USER_INFO, JSON.stringify(data.user));
           }
           
-          return await response.json();
+          return data;
         } catch (error) {
+          console.error('خطا در ورود:', error);
           throw error;
         }
       },
-
-      async uploadImage(file) {
+      
+      // لاگ اوت
+      logout() {
+        state.authToken = null;
+        state.userInfo = null;
+        state.isAdmin = false;
+        
+        localStorage.removeItem(CONFIG.AUTH_TOKEN_KEY);
+        localStorage.removeItem(CONFIG.STORAGE_KEYS.USER_INFO);
+      },
+      
+      // بررسی وضعیت احراز هویت
+      async checkAuth() {
+        if (!state.authToken) return false;
+        
         try {
-          const formData = new FormData();
-          formData.append('image', file);
-          
-          const headers = utils.getAuthHeader();
-          
-          const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.UPLOAD_IMAGE}`, {
-            method: 'POST',
-            headers,
-            body: formData
+          // می‌توانید یک endpoint برای بررسی اعتبار توکن داشته باشید
+          const response = await fetch(`${CONFIG.API_BASE_URL}/auth/verify`, {
+            method: 'GET',
+            headers: this.getHeaders()
           });
           
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'خطا در آپلود عکس');
-          }
-          
-          return await response.json();
+          return response.ok;
         } catch (error) {
-          throw error;
+          console.error('خطا در بررسی احراز هویت:', error);
+          return false;
         }
       }
     };
 
     // ================== Data Management ==================
     const dataManager = {
+      // بارگذاری آیتم‌های منو
       async loadMenuItems() {
-        try {
-          if (state.isOnline) {
+        // اگر آنلاین هستیم، از API بگیر
+        if (state.isOnline) {
+          try {
             const apiItems = await apiManager.fetchMenuItems();
-            state.menuItems = apiItems;
-            utils.showToast('منو از سرور بارگذاری شد', 'success');
-          } else {
-            // حالت آفلاین - از localStorage استفاده کن
-            const saved = localStorage.getItem('tt_menu_cache');
-            if (saved) {
-              state.menuItems = JSON.parse(saved);
-              utils.showToast('بارگذاری از حافظه موقت', 'info');
-            } else {
-              state.menuItems = this.getDefaultItems();
+            if (apiItems && apiItems.length > 0) {
+              state.menuItems = apiItems;
+              this.saveToLocalStorage();
+              utils.showToast('منو از سرور بارگذاری شد', 'success');
+              return;
             }
+          } catch (error) {
+            console.log('⚠️ خطا در دریافت از API، استفاده از حافظه محلی:', error);
           }
-        } catch (error) {
-          console.log('⚠️ خطا در دریافت از API:', error);
-          // فال‌بک به localStorage
-          const saved = localStorage.getItem('tt_menu_cache');
-          if (saved) {
-            state.menuItems = JSON.parse(saved);
-            utils.showToast('بارگذاری از حافظه موقت', 'info');
-          } else {
-            state.menuItems = this.getDefaultItems();
-          }
+        }
+        
+        // اگر API جواب نداد، از localStorage بگیر
+        const saved = localStorage.getItem(CONFIG.STORAGE_KEYS.MENU_ITEMS);
+        if (saved) {
+          state.menuItems = JSON.parse(saved);
+          utils.showToast('بارگذاری از حافظه محلی', 'info');
+        }
+        
+        // اگر هنوز هیچ آیتمی نداریم، داده پیش‌فرض
+        if (state.menuItems.length === 0) {
+          state.menuItems = this.getDefaultItems();
+          this.saveToLocalStorage();
         }
       },
       
+      // ذخیره در localStorage
+      saveToLocalStorage() {
+        localStorage.setItem(CONFIG.STORAGE_KEYS.MENU_ITEMS, JSON.stringify(state.menuItems));
+        localStorage.setItem(CONFIG.STORAGE_KEYS.LAST_SYNC, new Date().toISOString());
+      },
+      
+      // داده‌های پیش‌فرض
       getDefaultItems() {
         return [
           {
@@ -2326,8 +2402,8 @@
             status: "available",
             badge: "popular",
             image: CONFIG.DEFAULT_IMAGES.dessert,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           },
           {
             id: 2,
@@ -2339,8 +2415,8 @@
             status: "available",
             badge: "",
             image: CONFIG.DEFAULT_IMAGES.dessert,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           },
           {
             id: 3,
@@ -2352,134 +2428,161 @@
             status: "available",
             badge: "special",
             image: CONFIG.DEFAULT_IMAGES.dessert,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: 4,
-            name: "پیتزا مخصوص تاپ تنور",
-            description: "پنیر موزارلا، گوشت، قارچ، فلفل دلمه‌ای و سس ویژه.",
-            category: "fastfood",
-            price: 280000,
-            discount: 15,
-            status: "available",
-            badge: "special",
-            image: CONFIG.DEFAULT_IMAGES.fastfood,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: 5,
-            name: "برگر کلاسیک",
-            description: "برگر گوشت ۱۵۰ گرمی با پنیر چدار، کاهو و سس مخصوص.",
-            category: "fastfood",
-            price: 190000,
-            discount: 0,
-            status: "available",
-            badge: "",
-            image: CONFIG.DEFAULT_IMAGES.fastfood,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           }
         ];
       },
       
+      // پیدا کردن آیتم بر اساس ID
       getItemById(id) {
         return state.menuItems.find(item => item.id === id);
       },
       
-      async addItem(item) {
+      // افزودن آیتم جدید
+      async addItem(itemData) {
         try {
+          let newItem;
+          
+          // اگر آنلاین هستیم و توکن داریم، به API ارسال کن
           if (state.isOnline && state.authToken) {
-            const result = await apiManager.addMenuItem(item);
-            if (result && result.item) {
-              // بارگذاری مجدد از سرور
-              await this.loadMenuItems();
-              return result;
+            try {
+              newItem = await apiManager.addMenuItem(itemData);
+              if (newItem) {
+                state.menuItems.push(newItem);
+                this.saveToLocalStorage();
+                utils.showToast('آیتم با موفقیت به سرور اضافه شد', 'success');
+                return newItem;
+              }
+            } catch (apiError) {
+              console.log('خطا در ارسال به API، ذخیره محلی:', apiError);
             }
           }
           
-          // حالت آفلاین یا بدون توکن
-          const newItem = {
-            ...item,
-            id: utils.getNextId(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+          // اگر آنلاین نبود یا خطا داد، محلی ذخیره کن
+          newItem = {
+            ...itemData,
+            id: Date.now(), // ID موقت
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            local: true // علامت برای آیتم‌های محلی
           };
           
           state.menuItems.push(newItem);
-          this.saveToCache();
-          return { item: newItem, message: 'آیتم به صورت موقت ذخیره شد' };
+          this.saveToLocalStorage();
+          utils.showToast('آیتم به صورت محلی ذخیره شد', 'info');
+          
+          return newItem;
         } catch (error) {
+          console.error('خطا در افزودن آیتم:', error);
           throw error;
         }
       },
       
+      // ویرایش آیتم
       async updateItem(id, updates) {
         try {
-          if (state.isOnline && state.authToken) {
-            const result = await apiManager.updateMenuItem(id, updates);
-            if (result) {
-              await this.loadMenuItems();
-              return result;
+          const index = state.menuItems.findIndex(item => item.id === id);
+          if (index === -1) throw new Error('آیتم یافت نشد');
+          
+          // اگر آنلاین هستیم و توکن داریم، به API ارسال کن
+          if (state.isOnline && state.authToken && !state.menuItems[index].local) {
+            try {
+              const updatedItem = await apiManager.updateMenuItem(id, updates);
+              if (updatedItem) {
+                state.menuItems[index] = { ...state.menuItems[index], ...updatedItem };
+                this.saveToLocalStorage();
+                utils.showToast('آیتم با موفقیت در سرور به‌روزرسانی شد', 'success');
+                return updatedItem;
+              }
+            } catch (apiError) {
+              console.log('خطا در ارسال به API، به‌روزرسانی محلی:', apiError);
             }
           }
           
-          // حالت آفلاین
-          const index = state.menuItems.findIndex(item => item.id === id);
-          if (index !== -1) {
-            state.menuItems[index] = { 
-              ...state.menuItems[index], 
-              ...updates,
-              updated_at: new Date().toISOString()
-            };
-            this.saveToCache();
-            return { 
-              message: 'آیتم به صورت موقت به‌روزرسانی شد',
-              item: state.menuItems[index]
-            };
-          }
-          throw new Error('آیتم یافت نشد');
+          // به‌روزرسانی محلی
+          const updatedItem = {
+            ...state.menuItems[index],
+            ...updates,
+            updatedAt: new Date().toISOString(),
+            local: state.menuItems[index].local || false
+          };
+          
+          state.menuItems[index] = updatedItem;
+          this.saveToLocalStorage();
+          utils.showToast('آیتم به صورت محلی به‌روزرسانی شد', 'info');
+          
+          return updatedItem;
         } catch (error) {
+          console.error('خطا در ویرایش آیتم:', error);
           throw error;
         }
       },
       
+      // حذف آیتم
       async deleteItem(id) {
         try {
-          if (state.isOnline && state.authToken) {
-            const result = await apiManager.deleteMenuItem(id);
-            if (result) {
-              await this.loadMenuItems();
-              return result;
+          const index = state.menuItems.findIndex(item => item.id === id);
+          if (index === -1) throw new Error('آیتم یافت نشد');
+          
+          // اگر آنلاین هستیم و توکن داریم و آیتم محلی نیست، از API حذف کن
+          if (state.isOnline && state.authToken && !state.menuItems[index].local) {
+            try {
+              await apiManager.deleteMenuItem(id);
+            } catch (apiError) {
+              console.log('خطا در حذف از API، حذف محلی:', apiError);
             }
           }
           
-          // حالت آفلاین
-          const index = state.menuItems.findIndex(item => item.id === id);
-          if (index !== -1) {
-            state.menuItems.splice(index, 1);
-            this.saveToCache();
-            return { message: 'آیتم به صورت موقت حذف شد' };
-          }
-          throw new Error('آیتم یافت نشد');
+          // حذف از آرایه محلی
+          state.menuItems.splice(index, 1);
+          this.saveToLocalStorage();
+          utils.showToast('آیتم با موفقیت حذف شد', 'success');
+          
+          return true;
         } catch (error) {
+          console.error('خطا در حذف آیتم:', error);
           throw error;
         }
       },
       
-      saveToCache() {
-        localStorage.setItem('tt_menu_cache', JSON.stringify(state.menuItems));
-      },
-      
+      // همگام‌سازی با سرور
       async syncWithServer() {
         if (!state.isOnline || !state.authToken) return false;
         
         try {
-          await this.loadMenuItems();
+          // آیتم‌های محلی را پیدا کن
+          const localItems = state.menuItems.filter(item => item.local);
+          
+          // هر آیتم محلی را به سرور ارسال کن
+          for (const item of localItems) {
+            try {
+              const { local, ...itemData } = item;
+              const serverItem = await apiManager.addMenuItem(itemData);
+              
+              // آیتم را در آرایه محلی با نسخه سرور جایگزین کن
+              const index = state.menuItems.findIndex(i => i.id === item.id);
+              if (index !== -1) {
+                state.menuItems[index] = { ...serverItem, local: false };
+              }
+            } catch (error) {
+              console.error(`خطا در همگام‌سازی آیتم ${item.id}:`, error);
+            }
+          }
+          
+          // از سرور جدیدترین داده‌ها را بگیر
+          const serverItems = await apiManager.fetchMenuItems();
+          if (serverItems && serverItems.length > 0) {
+            // فقط آیتم‌های غیرمحلی را آپدیت کن
+            state.menuItems = state.menuItems.filter(item => item.local);
+            state.menuItems.push(...serverItems);
+            this.saveToLocalStorage();
+          }
+          
+          utils.showToast('همگام‌سازی با سرور انجام شد', 'success');
           return true;
         } catch (error) {
-          console.error('Sync error:', error);
+          console.error('خطا در همگام‌سازی:', error);
           return false;
         }
       }
@@ -2487,19 +2590,19 @@
 
     // ================== UI Rendering ==================
     const renderer = {
+      // رندر آیتم‌های منو
       renderMenuItems() {
-        // Clear all grids
+        // پاک کردن همه گریدها
         [elements.fastfoodGrid, elements.dessertGrid, elements.hotGrid, elements.coldGrid]
           .forEach(grid => grid.innerHTML = '');
         
-        // Render each item
+        // رندر هر آیتم
         state.menuItems.forEach(item => {
           const grid = this.getGridByCategory(item.category);
           if (!grid) return;
           
           const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
           const badgeName = utils.getBadgeName(item.badge);
-          const imageUrl = item.image_url || item.image || CONFIG.DEFAULT_IMAGES[item.category];
           
           const card = document.createElement('div');
           card.className = `menu-card ${item.status === 'unavailable' ? 'unavailable' : ''} ${item.discount > 0 ? 'discounted' : ''}`;
@@ -2508,14 +2611,16 @@
           card.dataset.category = item.category;
           card.dataset.price = finalPrice;
           
+          // علامت برای آیتم‌های محلی
+          const localBadge = item.local ? '<span class="badge" style="background:var(--warning);color:white;font-size:0.7rem;padding:2px 8px;margin-right:4px;">محلی</span>' : '';
+          
           card.innerHTML = `
-            <img src="${imageUrl}" 
+            <img src="${item.image || CONFIG.DEFAULT_IMAGES[item.category]}" 
                  alt="${item.name}" 
-                 class="menu-image"
-                 onerror="this.src='${CONFIG.DEFAULT_IMAGES[item.category]}'">
+                 class="menu-image">
             <div class="card-content">
               <div class="card-header">
-                <h3 class="menu-title">${item.name}</h3>
+                <h3 class="menu-title">${item.name} ${localBadge}</h3>
                 <div class="menu-price">
                   ${utils.formatPrice(finalPrice)}
                   ${item.discount > 0 ? `<span class="original-price">${utils.formatPrice(item.price)}</span>` : ''}
@@ -2533,11 +2638,12 @@
           grid.appendChild(card);
         });
         
-        // Attach event listeners
+        // اضافه کردن event listenerها
         this.attachCardEvents();
         filterManager.applyFilters();
       },
       
+      // پیدا کردن گرید بر اساس دسته‌بندی
       getGridByCategory(category) {
         const grids = {
           fastfood: elements.fastfoodGrid,
@@ -2548,6 +2654,7 @@
         return grids[category];
       },
       
+      // اضافه کردن event listener به کارت‌ها
       attachCardEvents() {
         document.querySelectorAll('.btn-details').forEach(btn => {
           btn.addEventListener('click', (e) => {
@@ -2559,7 +2666,7 @@
           });
         });
         
-        // Add keyboard support
+        // پشتیبانی از کیبورد
         document.querySelectorAll('.menu-card').forEach(card => {
           card.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -2571,6 +2678,7 @@
         });
       },
       
+      // رندر لیست آیتم‌ها در پنل مدیریت
       renderItemsList() {
         elements.itemsList.innerHTML = '';
         
@@ -2584,13 +2692,14 @@
           }
           
           const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
-          const imageUrl = item.image_url || item.image || CONFIG.DEFAULT_IMAGES[item.category];
+          
+          // علامت برای آیتم‌های محلی
+          const localTag = item.local ? '<div style="color:var(--warning);font-size:0.75rem;margin-top:2px">ذخیره محلی</div>' : '';
           
           div.innerHTML = `
-            <img src="${imageUrl}" 
+            <img src="${item.image || CONFIG.DEFAULT_IMAGES[item.category]}" 
                  alt="${item.name}" 
-                 class="item-card-image"
-                 onerror="this.src='${CONFIG.DEFAULT_IMAGES[item.category]}'">
+                 class="item-card-image">
             <div class="item-card-content">
               <div class="item-card-title">${item.name}</div>
               <div class="item-card-meta">
@@ -2598,7 +2707,7 @@
                 <span class="item-card-price">${utils.formatPrice(finalPrice)}</span>
               </div>
               ${item.status === 'unavailable' ? '<div style="color:var(--danger);font-size:0.85rem;margin-top:4px">ناموجود</div>' : ''}
-              ${!state.isOnline ? '<div style="color:var(--warning);font-size:0.75rem;margin-top:2px">آفلاین</div>' : ''}
+              ${localTag}
             </div>
           `;
           
@@ -2607,6 +2716,7 @@
         });
       },
       
+      // به‌روزرسانی تعداد نتایج
       updateResultCount(count) {
         elements.resultCount.textContent = `${count} مورد`;
       }
@@ -2614,17 +2724,17 @@
 
     // ================== Modal Management ==================
     const modalManager = {
+      // باز کردن مودال جزئیات
       openDetailModal(id) {
         const item = dataManager.getItemById(id);
         if (!item) return;
         
         const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
-        const imageUrl = item.image_url || item.image || CONFIG.DEFAULT_IMAGES[item.category];
         
         elements.modalTitle.textContent = item.name;
         elements.modalPrice.textContent = utils.formatPrice(finalPrice);
         elements.modalDescription.textContent = item.description;
-        elements.modalImage.src = imageUrl;
+        elements.modalImage.src = item.image || CONFIG.DEFAULT_IMAGES[item.category];
         elements.modalImage.alt = item.name;
         elements.modalCategory.textContent = utils.getCategoryName(item.category);
         elements.modalStatus.textContent = item.status === 'available' ? 'موجود' : 'ناموجود';
@@ -2635,6 +2745,7 @@
         document.body.style.overflow = 'hidden';
       },
       
+      // بستن مودال جزئیات
       closeDetailModal() {
         elements.detailModal.classList.remove('active');
         document.body.style.overflow = '';
@@ -2644,7 +2755,7 @@
     // ================== Filter Management ==================
     const filterManager = {
       init() {
-        // Filter buttons
+        // دکمه‌های فیلتر
         document.querySelectorAll('.filter-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -2654,7 +2765,7 @@
           });
         });
         
-        // Search input
+        // جستجو
         elements.searchInput.addEventListener('input', utils.debounce(() => {
           state.searchTerm = elements.searchInput.value.toLowerCase();
           this.applyFilters();
@@ -2686,20 +2797,31 @@
     // ================== Admin Management ==================
     const adminManager = {
       init() {
-        // Check admin session
-        state.isAdmin = !!state.authToken;
-        
-        if (state.isAdmin) {
-          elements.adminBtn.textContent = 'پنل مدیریت';
+        // بررسی وضعیت احراز هویت
+        this.checkAuthStatus();
+      },
+      
+      // بررسی وضعیت احراز هویت
+      async checkAuthStatus() {
+        if (state.authToken) {
+          const isValid = await apiManager.checkAuth();
+          if (isValid) {
+            state.isAdmin = true;
+            elements.adminBtn.textContent = 'پنل مدیریت';
+          } else {
+            apiManager.logout();
+          }
         }
       },
       
+      // نمایش فرم لاگین
       showLogin() {
         elements.loginModal.classList.add('active');
         document.body.style.overflow = 'hidden';
         elements.username.focus();
       },
       
+      // مخفی کردن فرم لاگین
       hideLogin() {
         elements.loginModal.classList.remove('active');
         document.body.style.overflow = '';
@@ -2708,6 +2830,7 @@
         elements.loginError.classList.remove('show');
       },
       
+      // لاگین
       async login() {
         const username = elements.username.value.trim();
         const password = elements.password.value.trim();
@@ -2721,42 +2844,39 @@
         try {
           const result = await apiManager.login(username, password);
           
-          if (result && result.token) {
-            state.authToken = result.token;
-            state.isAdmin = true;
-            
-            // ذخیره توکن
-            localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, result.token);
-            localStorage.setItem(CONFIG.STORAGE_KEYS.ADMIN_SESSION, 'true');
-            
+          if (result && result.success) {
             this.hideLogin();
             this.showAdminPanel();
             utils.showToast('با موفقیت وارد شدید', 'success');
             
-            // بارگذاری مجدد منو
-            await dataManager.loadMenuItems();
-            renderer.renderMenuItems();
+            // همگام‌سازی بعد از لاگین
+            if (state.isOnline) {
+              setTimeout(() => {
+                dataManager.syncWithServer().then(() => {
+                  renderer.renderMenuItems();
+                  renderer.renderItemsList();
+                });
+              }, 1000);
+            }
           } else {
-            elements.loginError.textContent = 'نام کاربری یا رمز عبور اشتباه است';
+            elements.loginError.textContent = result?.message || 'نام کاربری یا رمز عبور اشتباه است';
             elements.loginError.classList.add('show');
           }
         } catch (error) {
-          console.error('Login error:', error);
-          elements.loginError.textContent = error.message || 'خطا در ورود به سیستم';
+          elements.loginError.textContent = 'خطا در ارتباط با سرور';
           elements.loginError.classList.add('show');
+          console.error('Login error:', error);
         }
       },
       
+      // لاگ‌اوت
       logout() {
-        state.isAdmin = false;
-        state.authToken = null;
-        localStorage.removeItem(CONFIG.STORAGE_KEYS.TOKEN);
-        localStorage.removeItem(CONFIG.STORAGE_KEYS.ADMIN_SESSION);
+        apiManager.logout();
         this.hideAdminPanel();
         utils.showToast('با موفقیت خارج شدید', 'info');
-        elements.adminBtn.textContent = 'پنل مدیریت';
       },
       
+      // نمایش پنل مدیریت
       showAdminPanel() {
         elements.adminPanel.classList.add('active');
         document.body.style.overflow = 'hidden';
@@ -2764,11 +2884,13 @@
         renderer.renderItemsList();
       },
       
+      // مخفی کردن پنل مدیریت
       hideAdminPanel() {
         elements.adminPanel.classList.remove('active');
         document.body.style.overflow = '';
       },
       
+      // ریست فرم
       resetForm() {
         state.currentEditId = null;
         state.currentImage = null;
@@ -2788,18 +2910,19 @@
         
         elements.deleteBtn.style.display = 'none';
         
-        // Remove active class from all items
+        // حذف کلاس active از همه آیتم‌ها
         document.querySelectorAll('.item-card').forEach(card => {
           card.classList.remove('active');
         });
       },
       
+      // ویرایش آیتم
       editItem(id) {
         const item = dataManager.getItemById(id);
         if (!item) return;
         
         state.currentEditId = id;
-        state.currentImage = item.image_url || item.image;
+        state.currentImage = item.image;
         
         elements.formTitle.textContent = 'ویرایش آیتم';
         elements.itemName.value = item.name;
@@ -2810,16 +2933,16 @@
         elements.itemBadge.value = item.badge || '';
         elements.itemDescription.value = item.description;
         
-        if (state.currentImage) {
+        if (item.image) {
           elements.imagePreview.style.display = 'block';
-          elements.previewImage.src = state.currentImage;
+          elements.previewImage.src = item.image;
         } else {
           elements.imagePreview.style.display = 'none';
         }
         
         elements.deleteBtn.style.display = 'block';
         
-        // Highlight active item
+        // هایلایت آیتم فعال
         document.querySelectorAll('.item-card').forEach(card => {
           card.classList.remove('active');
           if (parseInt(card.dataset.id) === id) {
@@ -2828,6 +2951,7 @@
         });
       },
       
+      // ذخیره آیتم
       async saveItem() {
         const name = elements.itemName.value.trim();
         const category = elements.itemCategory.value;
@@ -2837,11 +2961,16 @@
         const badge = elements.itemBadge.value;
         const description = elements.itemDescription.value.trim();
         
-        if (!name || !category || !price || price <= 0) {
-          utils.showToast('لطفا فیلدهای ضروری را پر کنید', 'error');
+        // اعتبارسنجی
+        const formData = { name, category, price, discount, status, badge, description };
+        const errors = utils.validateForm(formData);
+        
+        if (errors.length > 0) {
+          utils.showToast(errors[0], 'error');
           return;
         }
         
+        // آماده‌سازی داده‌ها
         const itemData = {
           name,
           description,
@@ -2855,84 +2984,89 @@
         
         try {
           if (state.currentEditId) {
-            // Update existing item
-            const result = await dataManager.updateItem(state.currentEditId, itemData);
-            utils.showToast(result.message || 'آیتم با موفقیت ویرایش شد', 'success');
+            // ویرایش آیتم موجود
+            await dataManager.updateItem(state.currentEditId, itemData);
+            utils.showToast('آیتم با موفقیت ویرایش شد', 'success');
           } else {
-            // Add new item
-            const result = await dataManager.addItem(itemData);
-            utils.showToast(result.message || 'آیتم جدید با موفقیت اضافه شد', 'success');
+            // افزودن آیتم جدید
+            await dataManager.addItem(itemData);
+            utils.showToast('آیتم جدید با موفقیت اضافه شد', 'success');
           }
           
-          // Update UI
+          // به‌روزرسانی UI
           renderer.renderMenuItems();
           renderer.renderItemsList();
           this.resetForm();
         } catch (error) {
-          utils.handleApiError(error, 'خطا در ذخیره آیتم');
+          console.error('خطا در ذخیره آیتم:', error);
+          utils.showToast('خطا در ذخیره آیتم', 'error');
         }
       },
       
+      // حذف آیتم
       async deleteItem() {
         if (!state.currentEditId || !confirm('آیا از حذف این آیتم مطمئن هستید؟')) return;
         
         try {
-          const result = await dataManager.deleteItem(state.currentEditId);
-          utils.showToast(result.message || 'آیتم با موفقیت حذف شد', 'success');
+          await dataManager.deleteItem(state.currentEditId);
+          utils.showToast('آیتم با موفقیت حذف شد', 'success');
           renderer.renderMenuItems();
           renderer.renderItemsList();
           this.resetForm();
         } catch (error) {
-          utils.handleApiError(error, 'خطا در حذف آیتم');
+          console.error('خطا در حذف آیتم:', error);
+          utils.showToast('خطا در حذف آیتم', 'error');
         }
       },
       
+      // آپلود عکس
       async handleImageUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
         
-        // Check file size (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-          utils.showToast('حجم فایل نباید بیشتر از 5MB باشد', 'error');
+        // بررسی حجم فایل (حداکثر 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+          utils.showToast('حجم فایل نباید بیشتر از 2MB باشد', 'error');
           return;
         }
         
-        // Check file type
+        // بررسی نوع فایل
         if (!file.type.match('image.*')) {
           utils.showToast('لطفا یک فایل تصویری انتخاب کنید', 'error');
           return;
         }
         
+        // اگر آنلاین هستیم و توکن داریم، عکس را به سرور آپلود کن
         if (state.isOnline && state.authToken) {
           try {
             utils.showToast('در حال آپلود عکس...', 'info');
             const result = await apiManager.uploadImage(file);
-            state.currentImage = result.image_url;
-            elements.imagePreview.style.display = 'block';
-            elements.previewImage.src = result.image_url;
-            utils.showToast('عکس با موفقیت آپلود شد', 'success');
+            
+            if (result && result.url) {
+              state.currentImage = result.url;
+              elements.imagePreview.style.display = 'block';
+              elements.previewImage.src = result.url;
+              utils.showToast('عکس با موفقیت آپلود شد', 'success');
+              return;
+            }
           } catch (error) {
-            console.error('Upload error:', error);
-            // Fallback به base64
-            this.handleImageAsBase64(file);
+            console.error('خطا در آپلود عکس به سرور:', error);
+            // ادامه با ذخیره محلی
           }
-        } else {
-          // حالت آفلاین - ذخیره به صورت base64
-          this.handleImageAsBase64(file);
         }
-      },
-      
-      handleImageAsBase64(file) {
+        
+        // ذخیره محلی
         const reader = new FileReader();
         reader.onload = (e) => {
           state.currentImage = e.target.result;
           elements.imagePreview.style.display = 'block';
           elements.previewImage.src = state.currentImage;
-          utils.showToast('عکس به صورت موقت ذخیره شد', 'warning');
+          utils.showToast('عکس به صورت محلی ذخیره شد', 'info');
         };
         reader.readAsDataURL(file);
       },
       
+      // حذف عکس
       removeImage() {
         state.currentImage = null;
         elements.imagePreview.style.display = 'none';
@@ -2978,7 +3112,7 @@
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
         
-        // Smooth scroll for navigation links
+        // اسکرول نرم برای لینک‌های ناوبری
         document.querySelectorAll('a[href^="#"]').forEach(link => {
           link.addEventListener('click', (e) => {
             const href = link.getAttribute('href');
@@ -2992,7 +3126,7 @@
           });
         });
         
-        // Scroll to menu button
+        // دکمه اسکرول به منو
         elements.scrollToMenu.addEventListener('click', () => {
           elements.menuContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
@@ -3001,7 +3135,7 @@
       handleScroll() {
         const scrollY = window.scrollY;
         
-        // Header shrink
+        // کوچک کردن هدر
         if (scrollY > 100) {
           elements.header.style.padding = '10px 0';
           elements.header.style.backdropFilter = 'blur(20px)';
@@ -3010,7 +3144,7 @@
           elements.header.style.backdropFilter = '';
         }
         
-        // Back to top button
+        // دکمه بازگشت به بالا
         if (scrollY > 500) {
           elements.backToTop.classList.add('show');
         } else {
@@ -3029,13 +3163,13 @@
             currentSection = section.id;
           }
           
-          // Add visible class when in viewport
+          // اضافه کردن کلاس visible وقتی در viewport است
           if (rect.top < window.innerHeight - 100) {
             section.classList.add('visible');
           }
         });
         
-        // Update active nav links
+        // به‌روزرسانی لینک‌های ناوبری فعال
         navLinks.forEach(link => {
           const section = link.dataset.section;
           link.classList.toggle('active', section === currentSection);
@@ -3054,7 +3188,7 @@
           }
         });
         
-        // Admin button in drawer
+        // دکمه ادمین در دراور
         elements.drawerAdminBtn.addEventListener('click', () => {
           this.closeDrawer();
           if (state.isAdmin) {
@@ -3078,10 +3212,10 @@
 
     // ================== Event Listeners ==================
     const setupEventListeners = () => {
-      // Theme toggle
+      // تغییر تم
       elements.themeBtn.addEventListener('click', () => themeManager.toggleTheme());
       
-      // Admin button
+      // دکمه ادمین
       elements.adminBtn.addEventListener('click', () => {
         if (state.isAdmin) {
           adminManager.showAdminPanel();
@@ -3090,13 +3224,13 @@
         }
       });
       
-      // Back button
+      // دکمه بازگشت
       elements.backBtn.addEventListener('click', () => adminManager.hideAdminPanel());
       
-      // Logout button
+      // دکمه خروج
       elements.logoutBtn.addEventListener('click', () => adminManager.logout());
       
-      // Modal close
+      // بستن مودال
       elements.modalClose.addEventListener('click', () => modalManager.closeDetailModal());
       elements.detailModal.addEventListener('click', (e) => {
         if (e.target === elements.detailModal) {
@@ -3104,23 +3238,23 @@
         }
       });
       
-      // Login
+      // لاگین
       elements.loginBtn.addEventListener('click', () => adminManager.login());
       elements.password.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') adminManager.login();
       });
       
-      // Admin form
+      // فرم ادمین
       elements.addNewBtn.addEventListener('click', () => adminManager.resetForm());
       elements.saveBtn.addEventListener('click', () => adminManager.saveItem());
       elements.cancelBtn.addEventListener('click', () => adminManager.resetForm());
       elements.deleteBtn.addEventListener('click', () => adminManager.deleteItem());
       
-      // Image upload
+      // آپلود عکس
       elements.itemImage.addEventListener('change', (e) => adminManager.handleImageUpload(e));
       elements.removeImage.addEventListener('click', () => adminManager.removeImage());
       
-      // Close login modal on escape
+      // بستن با دکمه Escape
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           if (elements.loginModal.classList.contains('active')) {
@@ -3132,10 +3266,13 @@
           if (elements.adminPanel.classList.contains('active')) {
             adminManager.hideAdminPanel();
           }
+          if (elements.drawerOverlay.classList.contains('active')) {
+            drawerManager.closeDrawer();
+          }
         }
       });
       
-      // Keyboard shortcut for search
+      // کلید میانبر برای جستجو
       document.addEventListener('keydown', (e) => {
         if (e.key === '/' && document.activeElement !== elements.searchInput) {
           e.preventDefault();
@@ -3143,63 +3280,64 @@
         }
       });
       
-      // Online/Offline detection
-      window.addEventListener('online', () => {
+      // تشخیص آنلاین/آفلاین
+      window.addEventListener('online', async () => {
         utils.updateConnectionStatus(true);
-        dataManager.syncWithServer().then(synced => {
-          if (synced) {
+        
+        // همگام‌سازی با سرور
+        if (state.authToken) {
+          try {
+            await dataManager.syncWithServer();
             renderer.renderMenuItems();
             renderer.renderItemsList();
-            utils.showToast('اتصال به سرور برقرار شد', 'success');
+          } catch (error) {
+            console.error('خطا در همگام‌سازی:', error);
           }
-        });
+        }
       });
       
       window.addEventListener('offline', () => {
         utils.updateConnectionStatus(false);
-        utils.showToast('حالت آفلاین فعال است', 'warning');
       });
     };
 
     // ================== Initialization ==================
     const init = async () => {
-      // Update connection status
+      // به‌روزرسانی وضعیت اتصال
       utils.updateConnectionStatus(state.isOnline);
       
-      // Initialize managers
+      // بارگذاری داده‌ها
+      await dataManager.loadMenuItems();
+      
+      // مقداردهی اولیه مدیریت‌ها
       themeManager.init();
       adminManager.init();
       filterManager.init();
       scrollManager.init();
       drawerManager.init();
       
-      // Setup event listeners
+      // تنظیم event listenerها
       setupEventListeners();
       
-      // Load data
-      try {
-        await dataManager.loadMenuItems();
-        renderer.renderMenuItems();
-      } catch (error) {
-        console.error('Initial load error:', error);
-        utils.showToast('خطا در بارگذاری منو', 'error');
-      }
+      // رندر اولیه
+      renderer.renderMenuItems();
       
-      // Auto-sync if online
+      // همگام‌سازی خودکار اگر آنلاین هستیم
       if (state.isOnline && state.authToken) {
         setTimeout(() => {
           dataManager.syncWithServer();
         }, 2000);
       }
       
-      // Show welcome message
+      // نمایش پیام خوش‌آمدگویی
       setTimeout(() => {
         utils.showToast('به کافه تاپ تنور خوش آمدید!', 'info');
       }, 1000);
     };
 
-    // Start the application
+    // شروع برنامه
     init();
   </script>
 </body>
 </html>
+[file content end]
