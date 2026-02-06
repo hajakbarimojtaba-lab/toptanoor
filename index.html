@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>کافه تاپ تنور</title>
-  <meta name="description" content="منوی آنلاین کافه تاپ تنور" />
+  <title>کافه تاپ تنور </title>
+  <meta name="description" content="منوی آنلاین کافه تاپ تنور " />
   <meta name="color-scheme" content="dark light">
   
   <!-- اضافه کردن فونت و آیکون -->
@@ -55,7 +55,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; scroll-behavior: smooth; }
     body {
-      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       background:
         radial-gradient(800px 400px at 10% -10%, rgba(255,183,3,0.08), transparent 30%),
         radial-gradient(600px 300px at 90% 10%, rgba(0,180,216,0.06), transparent 35%),
@@ -1560,33 +1560,6 @@
     .connection-dot.offline {
       background: var(--danger);
     }
-    
-    /* ================== بهبودهای ظاهری ================== */
-    .menu-card .menu-image {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 3rem;
-    }
-    
-    .no-image-placeholder {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: white;
-      font-size: 3rem;
-    }
-    
-    .image-upload-preview {
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
   </style>
 </head>
 <body>
@@ -1602,7 +1575,6 @@
       </a>
 
       <nav class="nav-main" id="navMain">
-        <a href="#appetizer" class="nav-link" data-section="appetizer">پیش غذا</a>
         <a href="#fastfood" class="nav-link" data-section="fastfood">فست‌فود</a>
         <a href="#dessert" class="nav-link" data-section="dessert">دسر</a>
         <a href="#hot" class="nav-link" data-section="hot">نوشیدنی گرم</a>
@@ -1643,7 +1615,6 @@
         <span class="tag">محیط مناسب کار</span>
         <span class="tag">اینترنت پرسرعت</span>
         <span class="tag">دسرهای خانگی</span>
-        <span class="tag">پیش غذاهای ویژه</span>
       </div>
       
       <div class="hero-actions animate-slide-in-right" style="animation-delay: 0.6s">
@@ -1657,9 +1628,8 @@
     </div>
     
     <div class="hero-visual animate-fade-in-up" style="animation-delay: 0.3s">
-      <div class="no-image-placeholder">
-        ☕
-      </div>
+      <img src="https://images.unsplash.com/photo-1498804103079-a6351b050096?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80" 
+           alt="فضای داخلی کافه تاپ تنور" class="coffee-image">
     </div>
   </section>
 
@@ -1668,7 +1638,6 @@
     <div class="menu-toolbar">
       <div class="filters" id="filters">
         <button class="filter-btn active" data-filter="all">همه موارد</button>
-        <button class="filter-btn" data-filter="appetizer">پیش غذا</button>
         <button class="filter-btn" data-filter="fastfood">فست‌فود</button>
         <button class="filter-btn" data-filter="dessert">دسر</button>
         <button class="filter-btn" data-filter="hot">نوشیدنی گرم</button>
@@ -1684,17 +1653,6 @@
       </div>
     </div>
 
-    <!-- بخش پیش غذا -->
-    <section class="menu-section" id="appetizer">
-      <div class="section-header">
-        <div>
-          <h2 class="section-title">پیش غذا</h2>
-          <p class="section-subtitle">آغازگرهای اشتهابرانگیز</p>
-        </div>
-      </div>
-      <div class="menu-grid" id="appetizerGrid"></div>
-    </section>
-
     <!-- بخش فست فود -->
     <section class="menu-section" id="fastfood">
       <div class="section-header">
@@ -1706,8 +1664,8 @@
       <div class="menu-grid" id="fastfoodGrid"></div>
     </section>
 
-    <!-- بخش دسرها -->
-    <section class="menu-section" id="dessert">
+     <!-- بخش دسرها -->
+     <section class="menu-section" id="dessert">
       <div class="section-header">
         <div>
           <h2 class="section-title">دسر</h2>
@@ -1797,7 +1755,7 @@
   <div class="modal-overlay" id="detailModal">
     <div class="modal">
       <div class="modal-header">
-        <div id="modalImage" class="no-image-placeholder">📷</div>
+        <img id="modalImage" src="" alt="" class="modal-image">
         <button class="modal-close" id="modalClose">&times;</button>
       </div>
       <div class="modal-content">
@@ -1859,7 +1817,6 @@
             <div class="form-group">
               <label for="itemCategory" class="form-label">دسته‌بندی *</label>
               <select id="itemCategory" class="form-select">
-                <option value="appetizer">پیش غذا</option>
                 <option value="fastfood">فست‌فود</option>
                 <option value="dessert">دسر</option>
                 <option value="hot">نوشیدنی گرم</option>
@@ -1910,9 +1867,7 @@
                 <input type="file" id="itemImage" accept="image/*">
               </div>
               <div class="image-preview" id="imagePreview">
-                <div class="image-upload-preview">
-                  <img id="previewImage" src="" alt="پیش‌نمایش عکس">
-                </div>
+                <img id="previewImage" src="" alt="پیش‌نمایش عکس">
                 <button type="button" class="remove-image" id="removeImage">&times;</button>
               </div>
             </div>
@@ -1955,7 +1910,6 @@
         <button class="drawer-close" id="drawerClose">&times;</button>
       </div>
       <nav class="drawer-nav">
-        <a href="#appetizer" class="drawer-link" data-section="appetizer">پیش غذا</a>
         <a href="#fastfood" class="drawer-link" data-section="fastfood">فست‌فود</a>
         <a href="#dessert" class="drawer-link" data-section="dessert">دسر</a>
         <a href="#hot" class="drawer-link" data-section="hot">نوشیدنی گرم</a>
@@ -1998,18 +1952,16 @@
         USER_INFO: 'tt_user_info'
       },
       
-      // آیکون پیش‌فرض برای هر دسته‌بندی
-      DEFAULT_ICONS: {
-        appetizer: '🥗',
-        fastfood: '🍔',
-        dessert: '🍰',
-        hot: '☕',
-        cold: '🥤'
+      // تصاویر پیش‌فرض برای هر دسته‌بندی
+      DEFAULT_IMAGES: {
+        fastfood: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80',
+        dessert: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80',
+        hot: 'https://images.unsplash.com/photo-1498804103079-a6351b050096?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80',
+        cold: 'https://images.unsplash.com/photo-1561047029-3000c68339ca?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80'
       },
       
       // نگاشت دسته‌بندی‌ها به فارسی
       CATEGORY_NAMES: {
-        appetizer: 'پیش غذا',
         fastfood: 'فست‌فود',
         dessert: 'دسر',
         hot: 'نوشیدنی گرم',
@@ -2047,7 +1999,6 @@
       filters: document.getElementById('filters'),
       
       // Grids
-      appetizerGrid: document.getElementById('appetizerGrid'),
       fastfoodGrid: document.getElementById('fastfoodGrid'),
       dessertGrid: document.getElementById('dessertGrid'),
       hotGrid: document.getElementById('hotGrid'),
@@ -2144,10 +2095,6 @@
         return names[badge] || '';
       },
       
-      getCategoryIcon(category) {
-        return CONFIG.DEFAULT_ICONS[category] || '📝';
-      },
-      
       calculateFinalPrice(price, discount) {
         if (discount > 0) {
           return Math.round(price * (100 - discount) / 100);
@@ -2205,7 +2152,7 @@
       
       // ساخت آدرس کامل برای عکس
       getFullImageUrl(imageUrl) {
-        if (!imageUrl) return null;
+        if (!imageUrl) return CONFIG.DEFAULT_IMAGES.dessert;
         
         // اگر آدرس کامل است (با http شروع می‌شود)
         if (imageUrl.startsWith('http')) {
@@ -2218,17 +2165,7 @@
         }
         
         // اگر فقط نام فایل است
-        return CONFIG.API_BASE_URL + '/uploads/' + imageUrl;
-      },
-      
-      // تبدیل فایل به Base64
-      fileToBase64(file) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = error => reject(error);
-        });
+        return CONFIG.API_BASE_URL + '/api/images/' + imageUrl;
       }
     };
 
@@ -2265,7 +2202,12 @@
           });
           
           const data = await this.handleResponse(response);
-          return data;
+          
+          // تبدیل آدرس عکس‌ها به آدرس کامل
+          return data.map(item => ({
+            ...item,
+            image_url: utils.getFullImageUrl(item.image_url)
+          }));
         } catch (error) {
           console.error('خطا در دریافت منو از سرور:', error);
           throw error;
@@ -2281,6 +2223,12 @@
           });
           
           const data = await this.handleResponse(response);
+          
+          // تبدیل آدرس عکس به آدرس کامل
+          if (data.image_url) {
+            data.image_url = utils.getFullImageUrl(data.image_url);
+          }
+          
           return data;
         } catch (error) {
           console.error('خطا در دریافت آیتم:', error);
@@ -2298,6 +2246,12 @@
           });
           
           const data = await this.handleResponse(response);
+          
+          // تبدیل آدرس عکس به آدرس کامل
+          if (data.image_url) {
+            data.image_url = utils.getFullImageUrl(data.image_url);
+          }
+          
           return data;
         } catch (error) {
           console.error('خطا در افزودن آیتم:', error);
@@ -2315,6 +2269,12 @@
           });
           
           const data = await this.handleResponse(response);
+          
+          // تبدیل آدرس عکس به آدرس کامل
+          if (data.image_url) {
+            data.image_url = utils.getFullImageUrl(data.image_url);
+          }
+          
           return data;
         } catch (error) {
           console.error('خطا در ویرایش آیتم:', error);
@@ -2352,6 +2312,12 @@
           });
           
           const data = await this.handleResponse(response);
+          
+          // تبدیل آدرس عکس به آدرس کامل
+          if (data.image_url) {
+            data.image_url = utils.getFullImageUrl(data.image_url);
+          }
+          
           return data;
         } catch (error) {
           console.error('خطا در آپلود عکس:', error);
@@ -2466,19 +2432,6 @@
         return [
           {
             id: 1,
-            name: "پنیر موزارلا",
-            description: "پنیر موزارلای تازه با سس مخصوص و نان سیر.",
-            category: "appetizer",
-            price: 85000,
-            discount: 0,
-            status: "available",
-            badge: "new",
-            image_url: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: 2,
             name: "چیزکیک شکلاتی",
             description: "ترکیب پنیر خامه‌ای، شکلات تلخ و بیسکویت کره‌ای.",
             category: "dessert",
@@ -2486,20 +2439,33 @@
             discount: 0,
             status: "available",
             badge: "popular",
-            image_url: null,
+            image_url: CONFIG.DEFAULT_IMAGES.dessert,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: 2,
+            name: "براونی گردویی",
+            description: "کیک شکلاتی فاج با مغز گردو، سرو شده با سس شکلات.",
+            category: "dessert",
+            price: 90000,
+            discount: 10,
+            status: "available",
+            badge: "",
+            image_url: CONFIG.DEFAULT_IMAGES.dessert,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
           {
             id: 3,
-            name: "برگر ویژه",
-            description: "برگر با گوشت ۱۵۰ گرمی، پنیر چدار، کاهو و سس مخصوص.",
-            category: "fastfood",
-            price: 150000,
-            discount: 10,
+            name: "وافل میوه‌ای",
+            description: "وافل تازه با میوه‌های فصل، عسل و سس شکلات.",
+            category: "dessert",
+            price: 110000,
+            discount: 0,
             status: "available",
-            badge: "",
-            image_url: null,
+            badge: "special",
+            image_url: CONFIG.DEFAULT_IMAGES.dessert,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }
@@ -2665,7 +2631,7 @@
       // رندر آیتم‌های منو
       renderMenuItems() {
         // پاک کردن همه گریدها
-        [elements.appetizerGrid, elements.fastfoodGrid, elements.dessertGrid, elements.hotGrid, elements.coldGrid]
+        [elements.fastfoodGrid, elements.dessertGrid, elements.hotGrid, elements.coldGrid]
           .forEach(grid => grid.innerHTML = '');
         
         // رندر هر آیتم
@@ -2675,8 +2641,6 @@
           
           const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
           const badgeName = utils.getBadgeName(item.badge);
-          const icon = utils.getCategoryIcon(item.category);
-          const imageUrl = item.image_url ? utils.getFullImageUrl(item.image_url) : null;
           
           const card = document.createElement('div');
           card.className = `menu-card ${item.status === 'unavailable' ? 'unavailable' : ''} ${item.discount > 0 ? 'discounted' : ''}`;
@@ -2689,10 +2653,9 @@
           const localBadge = item.local ? '<span class="badge" style="background:var(--warning);color:white;font-size:0.7rem;padding:2px 8px;margin-right:4px;">محلی</span>' : '';
           
           card.innerHTML = `
-            ${imageUrl ? 
-              `<img src="${imageUrl}" alt="${item.name}" class="menu-image">` : 
-              `<div class="menu-image no-image-placeholder">${icon}</div>`
-            }
+            <img src="${item.image_url || CONFIG.DEFAULT_IMAGES[item.category]}" 
+                 alt="${item.name}" 
+                 class="menu-image">
             <div class="card-content">
               <div class="card-header">
                 <h3 class="menu-title">${item.name} ${localBadge}</h3>
@@ -2721,7 +2684,6 @@
       // پیدا کردن گرید بر اساس دسته‌بندی
       getGridByCategory(category) {
         const grids = {
-          appetizer: elements.appetizerGrid,
           fastfood: elements.fastfoodGrid,
           dessert: elements.dessertGrid,
           hot: elements.hotGrid,
@@ -2768,17 +2730,14 @@
           }
           
           const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
-          const icon = utils.getCategoryIcon(item.category);
-          const imageUrl = item.image_url ? utils.getFullImageUrl(item.image_url) : null;
           
           // علامت برای آیتم‌های محلی
           const localTag = item.local ? '<div style="color:var(--warning);font-size:0.75rem;margin-top:2px">ذخیره محلی</div>' : '';
           
           div.innerHTML = `
-            ${imageUrl ? 
-              `<img src="${imageUrl}" alt="${item.name}" class="item-card-image">` : 
-              `<div class="item-card-image" style="display:flex;align-items:center;justify-content:center;font-size:24px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#000;">${icon}</div>`
-            }
+            <img src="${item.image_url || CONFIG.DEFAULT_IMAGES[item.category]}" 
+                 alt="${item.name}" 
+                 class="item-card-image">
             <div class="item-card-content">
               <div class="item-card-title">${item.name}</div>
               <div class="item-card-meta">
@@ -2809,19 +2768,12 @@
         if (!item) return;
         
         const finalPrice = utils.calculateFinalPrice(item.price, item.discount);
-        const icon = utils.getCategoryIcon(item.category);
-        const imageUrl = item.image_url ? utils.getFullImageUrl(item.image_url) : null;
         
         elements.modalTitle.textContent = item.name;
         elements.modalPrice.textContent = utils.formatPrice(finalPrice);
         elements.modalDescription.textContent = item.description;
-        
-        if (imageUrl) {
-          elements.modalImage.innerHTML = `<img src="${imageUrl}" alt="${item.name}" class="modal-image">`;
-        } else {
-          elements.modalImage.innerHTML = `<div class="no-image-placeholder">${icon}</div>`;
-        }
-        
+        elements.modalImage.src = item.image_url || CONFIG.DEFAULT_IMAGES[item.category];
+        elements.modalImage.alt = item.name;
         elements.modalCategory.textContent = utils.getCategoryName(item.category);
         elements.modalStatus.textContent = item.status === 'available' ? 'موجود' : 'ناموجود';
         elements.modalDiscount.textContent = item.discount > 0 ? `${item.discount}%` : 'ندارد';
@@ -2983,7 +2935,7 @@
         
         elements.formTitle.textContent = 'افزودن آیتم جدید';
         elements.itemName.value = '';
-        elements.itemCategory.value = 'appetizer';
+        elements.itemCategory.value = 'dessert';
         elements.itemPrice.value = '';
         elements.itemDiscount.value = '0';
         elements.itemStatus.value = 'available';
@@ -3020,13 +2972,8 @@
         elements.itemDescription.value = item.description;
         
         if (item.image_url) {
-          const imageUrl = utils.getFullImageUrl(item.image_url);
-          if (imageUrl) {
-            elements.imagePreview.style.display = 'block';
-            elements.previewImage.src = imageUrl;
-          } else {
-            elements.imagePreview.style.display = 'none';
-          }
+          elements.imagePreview.style.display = 'block';
+          elements.previewImage.src = item.image_url;
         } else {
           elements.imagePreview.style.display = 'none';
         }
@@ -3070,7 +3017,7 @@
           discount,
           status,
           badge,
-          image_url: state.currentImage || null
+          image_url: state.currentImage || ''
         };
         
         try {
@@ -3137,28 +3084,26 @@
             if (result && result.image_url) {
               state.currentImage = result.image_url;
               elements.imagePreview.style.display = 'block';
-              elements.previewImage.src = utils.getFullImageUrl(result.image_url);
+              elements.previewImage.src = result.image_url;
               utils.showToast('عکس با موفقیت آپلود شد', 'success');
               return;
             }
           } catch (error) {
             console.error('خطا در آپلود عکس به سرور:', error);
-            utils.showToast('خطا در آپلود عکس به سرور', 'error');
-            // ادامه با ذخیره به صورت base64
+            utils.showToast('خطا در آپلود عکس، ذخیره محلی', 'warning');
+            // ادامه با ذخیره محلی
           }
         }
         
-        // ذخیره به صورت base64
-        try {
-          const base64Image = await utils.fileToBase64(file);
-          state.currentImage = base64Image;
+        // ذخیره محلی
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          state.currentImage = e.target.result;
           elements.imagePreview.style.display = 'block';
-          elements.previewImage.src = base64Image;
+          elements.previewImage.src = state.currentImage;
           utils.showToast('عکس به صورت محلی ذخیره شد', 'info');
-        } catch (error) {
-          console.error('خطا در تبدیل عکس:', error);
-          utils.showToast('خطا در پردازش عکس', 'error');
-        }
+        };
+        reader.readAsDataURL(file);
       },
       
       // حذف عکس
@@ -3420,10 +3365,7 @@
       // همگام‌سازی خودکار اگر آنلاین هستیم
       if (state.isOnline && state.authToken) {
         setTimeout(() => {
-          dataManager.syncWithServer().then(() => {
-            renderer.renderMenuItems();
-            renderer.renderItemsList();
-          });
+          dataManager.syncWithServer();
         }, 2000);
       }
       
